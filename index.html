@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0f1115">
+<meta name="mobile-web-app-capable" content="yes">
+<title>VibroMorse</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  :root {
+    --bg:#0f1115; --card:#1a1d24; --card2:#262a36; --line:#333949;
+    --text:#f2f4f8; --muted:#8b93a7;
+    --accent:#2ec4b6; --accent2:#7ee8dc; --ok:#3ddc97; --error:#ff4d6d; --r:18px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f3f5f9; --card:#ffffff; --card2:#e8ebf2; --line:#d5dae4; --text:#151821; --muted:#6b7385;
+      --accent:#119e91; --accent2:#0b7a70; }
+  }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html, body { background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Roboto,sans-serif; }
+  body { min-height:100dvh; overscroll-behavior:none; }
+  button { font-family:inherit; color:inherit; cursor:pointer; }
+  .app { max-width:600px; margin:0 auto; min-height:100dvh; display:flex; flex-direction:column; gap:14px;
+    padding:calc(env(safe-area-inset-top) + 12px) 14px calc(env(safe-area-inset-bottom) + 18px); }
+
+  header { display:flex; align-items:center; justify-content:space-between; }
+  header h1 { font-size:24px; font-weight:800; letter-spacing:-.5px; }
+  header h1 span { color:var(--accent); }
+  .icon-btn { background:var(--card); border:none; width:44px; height:44px; border-radius:14px; font-size:20px; }
+
+  .tabs { display:grid; grid-template-columns:repeat(4,1fr); background:var(--card); border-radius:16px; padding:4px; }
+  .tab { border:none; background:none; color:var(--muted); padding:11px 0; border-radius:12px; font-size:14px; font-weight:700; }
+  .tab.active { background:var(--accent); color:#fff; }
+  .page { display:none; flex-direction:column; gap:14px; flex:1; }
+  .page.active { display:flex; }
+
+  .card { background:var(--card); border-radius:var(--r); padding:16px; }
+  label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+  textarea { width:100%; background:var(--card2); border:1px solid transparent; color:var(--text); border-radius:14px;
+    padding:14px; font-size:18px; font-family:inherit; resize:none; height:110px; }
+  textarea:focus { outline:none; border-color:var(--accent); }
+  .btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; height:58px; border:none;
+    border-radius:16px; font-size:18px; font-weight:700; }
+  .btn.primary { background:var(--accent); color:#fff; }
+  .btn.ghost { background:var(--card2); }
+  .btn.stop { background:var(--error); color:#fff; }
+  .row { display:flex; gap:10px; } .row > * { flex:1; }
+  .hint { font-size:13px; color:var(--muted); line-height:1.5; }
+
+  /* "Lampa" – vizuální ukázka vibrace */
+  .stage { display:flex; flex-direction:column; align-items:center; gap:10px; padding:20px 10px; }
+  .lamp { width:120px; height:120px; border-radius:50%; background:var(--card2); display:flex; align-items:center;
+    justify-content:center; font-size:56px; font-weight:800; transition:background .05s, box-shadow .05s, transform .05s; }
+  .lamp.on { background:var(--accent); color:#fff; box-shadow:0 0 40px var(--accent); transform:scale(1.06); }
+  .code { display:flex; gap:8px; align-items:center; min-height:22px; }
+  .code i { display:block; height:14px; border-radius:7px; background:var(--line); }
+  .code i.dot { width:14px; } .code i.dash { width:42px; }
+  .code i.now { background:var(--accent); }
+  .code i.done { background:var(--accent2); opacity:.55; }
+  .chips { display:flex; flex-wrap:wrap; gap:4px; justify-content:center; font-size:20px; font-weight:700; letter-spacing:1px; }
+  .chips span { padding:2px 4px; border-radius:6px; color:var(--muted); }
+  .chips span.done { color:var(--text); }
+  .chips span.now { background:var(--accent); color:#fff; }
+  .chips span.space { width:12px; }
+
+  /* Trénink */
+  .score { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; text-align:center; }
+  .score div { background:var(--card2); border-radius:14px; padding:10px 4px; }
+  .score b { display:block; font-size:22px; }
+  .score small { color:var(--muted); font-size:12px; }
+  .answers { display:grid; grid-template-columns:repeat(auto-fill, minmax(58px,1fr)); gap:8px; }
+  .ans { height:58px; border:none; border-radius:14px; background:var(--card2); font-size:24px; font-weight:800; }
+  .ans.right { background:var(--ok); color:#0f1115; }
+  .ans.wrong { background:var(--error); color:#fff; }
+  .feedback { text-align:center; font-weight:700; min-height:24px; font-size:17px; }
+  input[type=range] { width:100%; accent-color:var(--accent); height:30px; }
+  .val { float:right; color:var(--text); font-weight:700; }
+
+  /* Klepání */
+  .pad { flex:1; min-height:260px; border-radius:24px; background:var(--card); border:2px dashed var(--line);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    touch-action:none; user-select:none; -webkit-user-select:none; transition:background .05s; }
+  .pad.down { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .pad .big { font-size:40px; font-weight:800; letter-spacing:6px; min-height:48px; }
+  .decoded { font-size:26px; font-weight:700; min-height:40px; word-break:break-word; letter-spacing:1px; }
+  .decoded .cursor { display:inline-block; width:2px; height:26px; background:var(--accent); vertical-align:middle; animation:blink 1s infinite; }
+  @keyframes blink { 50% { opacity:0 } }
+
+  /* Abeceda */
+  .alpha { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px,1fr)); gap:8px; }
+  .alpha button { border:none; background:var(--card); border-radius:14px; padding:12px 6px; display:flex; flex-direction:column;
+    align-items:center; gap:6px; }
+  .alpha b { font-size:24px; }
+  .alpha .code { justify-content:center; min-height:14px; gap:5px; }
+  .alpha .code i { height:10px; background:var(--muted); } .alpha .code i.dot { width:10px; } .alpha .code i.dash { width:28px; }
+  .alpha button.playing { background:var(--accent); color:#fff; }
+  .alpha button.playing .code i { background:#fff; }
+  h4 { font-size:14px; color:var(--muted); margin:6px 2px 0; }
+
+  /* Nastavení */
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; z-index:10; }
+  .overlay.open { display:block; }
+  .sheet { position:fixed; left:0; right:0; bottom:0; z-index:11; max-width:600px; margin:0 auto; background:var(--card);
+    border-radius:24px 24px 0 0; padding:20px 16px calc(env(safe-area-inset-bottom) + 20px);
+    transform:translateY(110%); transition:transform .25s ease; max-height:92dvh; overflow-y:auto; }
+  .sheet.open { transform:translateY(0); }
+  .sheet h3 { font-size:21px; margin-bottom:14px; }
+  .set { margin-bottom:16px; }
+  .toggle { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line); font-size:16px; }
+  .toggle small { display:block; color:var(--muted); font-size:12px; margin-top:2px; }
+  .switch { width:52px; height:30px; border-radius:15px; background:var(--card2); border:none; position:relative; flex-shrink:0; }
+  .switch::after { content:''; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .15s; }
+  .switch.on { background:var(--accent); }
+  .switch.on::after { left:25px; }
+  .warn { background:rgba(255,77,109,.14); color:var(--error); border-radius:14px; padding:12px 14px; font-size:14px; line-height:1.45; display:none; }
+
+  .toast { position:fixed; left:50%; top:calc(env(safe-area-inset-top) + 14px); transform:translateX(-50%) translateY(-160%);
+    background:var(--accent); color:#fff; font-weight:700; padding:12px 20px; border-radius:14px; transition:transform .25s; z-index:30; white-space:nowrap; }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>〰️ Vibro<span>Morse</span></h1>
+    <button class="icon-btn" id="btnSettings" aria-label="Nastavení">⚙️</button>
+  </header>
+
+  <div class="warn" id="noVibe">Tento prohlížeč neumí vibrovat (např. iPhone nebo počítač). Zapni si v ⚙️ zvuk – ukázka pak pípá a bliká.</div>
+
+  <div class="tabs">
+    <button class="tab active" data-page="pMsg">Zpráva</button>
+    <button class="tab" data-page="pTrain">Trénink</button>
+    <button class="tab" data-page="pTap">Klepání</button>
+    <button class="tab" data-page="pAlpha">Abeceda</button>
+  </div>
+
+  <!-- ZPRÁVA -->
+  <section class="page active" id="pMsg">
+    <div class="card">
+      <label for="msg">Text zprávy</label>
+      <textarea id="msg" placeholder="např. Ahoj, jdeme ven?">Ahoj</textarea>
+    </div>
+    <div class="card stage">
+      <div class="lamp" id="lamp"></div>
+      <div class="code" id="lampCode"></div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="btnPlay">▶ Zavibrovat</button>
+      <button class="btn ghost" id="btnRepeat" style="flex:0 0 72px" aria-label="Opakovat stále">🔁</button>
+    </div>
+    <p class="hint" id="msgInfo"></p>
+  </section>
+
+  <!-- TRÉNINK -->
+  <section class="page" id="pTrain">
+    <div class="card">
+      <label>Počet písmen v tréninku <span class="val" id="lvlVal"></span></label>
+      <input type="range" id="lvl" min="2" max="26" step="1">
+      <p class="hint" id="lvlLetters"></p>
+    </div>
+    <div class="score">
+      <div><b id="sRight">0</b><small>správně</small></div>
+      <div><b id="sPct">–</b><small>úspěšnost</small></div>
+      <div><b id="sStreak">0</b><small>v řadě</small></div>
+    </div>
+    <div class="feedback" id="feedback">Zavři oči, klepni na Start a poznej písmeno podle vibrace.</div>
+    <div class="row">
+      <button class="btn primary" id="btnTrainStart">▶ Start</button>
+      <button class="btn ghost" id="btnTrainRepeat">🔁 Znovu</button>
+    </div>
+    <div class="answers" id="answers"></div>
+  </section>
+
+  <!-- KLEPÁNÍ -->
+  <section class="page" id="pTap">
+    <p class="hint">Takhle by mohl odpovídat hluchoslepý: krátký stisk = tečka, dlouhý = čárka. Po krátké pauze se písmeno zapíše, po delší pauze přijde mezera.</p>
+    <div class="card"><div class="decoded" id="decoded"><span class="cursor"></span></div></div>
+    <div class="pad" id="pad">
+      <div class="big" id="padSymbols"></div>
+      <div class="hint" id="padHint">Klepej sem</div>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="btnTapBack">⌫ Smazat</button>
+      <button class="btn ghost" id="btnTapClear">🗑️ Vše</button>
+      <button class="btn primary" id="btnTapPlay">▶ Přehrát</button>
+    </div>
+  </section>
+
+  <!-- ABECEDA -->
+  <section class="page" id="pAlpha">
+    <p class="hint">Klepni na znak a ucítíš ho. Písmena jsou seřazená od nejkratších – v tomhle pořadí se je vyplatí učit.</p>
+    <div class="alpha" id="alpha"></div>
+  </section>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="sheet" id="sheetSettings">
+  <h3>Nastavení</h3>
+  <div class="set">
+    <label>Délka tečky (tempo) <span class="val" id="unitVal"></span></label>
+    <input type="range" id="unit" min="80" max="400" step="10">
+    <p class="hint">Čárka je 3× delší než tečka. Pro začátek doporučuji 180–250 ms.</p>
+  </div>
+  <div class="set">
+    <label>Pauza mezi písmeny <span class="val" id="gapVal"></span></label>
+    <input type="range" id="gap" min="1" max="4" step="0.5">
+    <p class="hint">Delší pauza mezi písmeny (při stejném tempu značek) se rozpoznává mnohem snáz.</p>
+  </div>
+  <div class="toggle"><div>Vibrace<small>hlavní výstup</small></div><button class="switch" data-set="vibrate"></button></div>
+  <div class="toggle"><div>Zvuk<small>pípání pro kontrolu (nebo bez vibrací)</small></div><button class="switch" data-set="sound"></button></div>
+  <div class="toggle"><div>Upozornění před zprávou<small>dlouhé zavrčení = „pozor, přichází zpráva“</small></div><button class="switch" data-set="alert"></button></div>
+  <div class="toggle"><div>Česká CH<small>„ch“ jako jeden znak ( – – – – )</small></div><button class="switch" data-set="ch"></button></div>
+  <div class="toggle"><div>Vibrace při klepání<small>telefon vrčí, dokud držíš prst</small></div><button class="switch" data-set="tapVibe"></button></div>
+  <button class="btn ghost" id="btnTest" style="margin-top:14px">Vyzkoušet: SOS</button>
+  <button class="btn primary" data-close style="margin-top:8px">Hotovo</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =========================================================
+// 1) MORSEOVA ABECEDA
+// =========================================================
+// "." = tečka (krátce), "-" = čárka (dlouze)
+const MORSE = {
+  A:'.-', B:'-...', C:'-.-.', D:'-..', E:'.', F:'..-.', G:'--.', H:'....', I:'..', J:'.---',
+  K:'-.-', L:'.-..', M:'--', N:'-.', O:'---', P:'.--.', Q:'--.-', R:'.-.', S:'...', T:'-',
+  U:'..-', V:'...-', W:'.--', X:'-..-', Y:'-.--', Z:'--..', CH:'----',
+  '0':'-----', '1':'.----', '2':'..---', '3':'...--', '4':'....-', '5':'.....',
+  '6':'-....', '7':'--...', '8':'---..', '9':'----.',
+  '.':'.-.-.-', ',':'--..--', '?':'..--..', '!':'--...-', '/':'-..-.', '=':'-...-'
+};
+// opačný směr (kód → znak) pro klepání
+const DECODE = Object.fromEntries(Object.entries(MORSE).map(([k, v]) => [v, k]));
+// pořadí písmen od nejkratších – v tomhle pořadí se učí
+const ORDER = 'ETIANMSURWDKGOHVFLPJBXCYZQ'.split('');
+
+// =========================================================
+// 2) NASTAVENÍ (uložené v telefonu)
+// =========================================================
+const $ = id => document.getElementById(id);
+const KEY = 'vibromorse_nastaveni_v1';
+const DEFAULTS = { unit: 200, gap: 2, vibrate: true, sound: false, alert: true, ch: true, tapVibe: true, level: 4 };
+let S = DEFAULTS;
+try { S = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(KEY))); } catch (e) {}
+const saveSettings = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+const canVibrate = 'vibrate' in navigator;
+if (!canVibrate) { $('noVibe').style.display = 'block'; if (!localStorage.getItem(KEY)) S.sound = true; }
+
+// =========================================================
+// 3) PŘEVOD TEXTU NA ZNAKY
+// =========================================================
+// "Čau Ondro" → [ {ch:'C', code:'-.-.'}, {ch:'A',…}, {ch:'U',…}, {ch:' '}, … ]
+function textToItems(text) {
+  // NFD rozloží "č" na "c" + háček; háček pak smažeme → zbyde "c"
+  const t = text.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  const items = [];
+  for (let i = 0; i < t.length; i++) {
+    if (S.ch && t[i] === 'C' && t[i + 1] === 'H') { items.push({ ch: 'CH', code: MORSE.CH }); i++; continue; }
+    const c = t[i];
+    if (/\s/.test(c)) { if (items.length && items[items.length - 1].ch !== ' ') items.push({ ch: ' ' }); continue; }
+    if (MORSE[c]) items.push({ ch: c, code: MORSE[c] });
+  }
+  while (items.length && items[items.length - 1].ch === ' ') items.pop();
+  return items;
+}
+
+// =========================================================
+// 4) PŘEHRÁVÁNÍ – vibrace, zvuk, blikání
+// =========================================================
+// Časování (u = délka tečky):
+//   tečka = 1u, čárka = 3u, mezera uvnitř písmene = 1u,
+//   mezi písmeny = 3u × "pauza", mezi slovy = 7u × "pauza"
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let playId = 0;                    // každé přehrání má číslo; Stop ho zvýší a staré přehrávání skončí
+const isCancelled = id => id !== playId;
+
+let audio = null;
+function beep(ms) {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
+    o.frequency.value = 620;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.25, t + 0.008);
+    g.gain.setValueAtTime(0.25, t + ms / 1000 - 0.008);
+    g.gain.linearRampToValueAtTime(0, t + ms / 1000);
+    o.connect(g).connect(audio.destination);
+    o.start(t); o.stop(t + ms / 1000 + 0.02);
+  } catch (e) {}
+}
+
+// jeden "zapnutý" úsek: vibrace + zvuk + rozsvícení
+async function signal(ms, lampEl) {
+  if (S.vibrate && canVibrate) navigator.vibrate(ms);
+  if (S.sound) beep(ms);
+  if (lampEl) lampEl.classList.add('on');
+  await sleep(ms);
+  if (lampEl) lampEl.classList.remove('on');
+}
+
+// Přehraje seznam znaků. hooks = funkce, které aktualizují obrazovku.
+async function playItems(items, hooks = {}) {
+  const id = ++playId;
+  const u = S.unit;
+  if (S.alert && hooks.alert !== false) {
+    await signal(u * 6, hooks.lamp);
+    await sleep(u * 5);
+  }
+  for (let k = 0; k < items.length; k++) {
+    if (isCancelled(id)) return false;
+    const it = items[k];
+    if (it.ch === ' ') { hooks.letter && hooks.letter(k, it); await sleep(u * 4 * S.gap); continue; }   // (+3u z konce písmene = 7u)
+    hooks.letter && hooks.letter(k, it);
+    for (let j = 0; j < it.code.length; j++) {
+      if (isCancelled(id)) return false;
+      hooks.symbol && hooks.symbol(j);
+      await signal(it.code[j] === '.' ? u : u * 3, hooks.lamp);
+      await sleep(u);                                       // mezera mezi tečkami a čárkami
+    }
+    hooks.symbol && hooks.symbol(it.code.length);
+    await sleep(u * 3 * S.gap - u);                         // mezera mezi písmeny
+  }
+  return !isCancelled(id);
+}
+function stopPlaying() { playId++; if (canVibrate) navigator.vibrate(0); }
+
+// vykreslení teček a čárek (např. pro "A": ● ▬)
+function codeHTML(code, now = -1) {
+  return [...code].map((s, j) => `<i class="${s === '.' ? 'dot' : 'dash'} ${j < now ? 'done' : j === now ? 'now' : ''}"></i>`).join('');
+}
+
+// =========================================================
+// 5) ZÁLOŽKA ZPRÁVA
+// =========================================================
+let playing = false, repeat = false, msgSession = 0;
+
+function renderChips(items, cur = -1) {
+  $('chips').innerHTML = items.map((it, k) =>
+    it.ch === ' ' ? '<span class="space"></span>' : `<span class="${k < cur ? 'done' : k === cur ? 'now' : ''}">${it.ch}</span>`).join('');
+}
+function updateMsgInfo() {
+  const items = textToItems($('msg').value);
+  const u = S.unit;
+  let ms = S.alert ? u * 11 : 0;
+  for (const it of items) ms += it.ch === ' ' ? u * 4 * S.gap : [...it.code].reduce((a, s) => a + (s === '.' ? u : 3 * u) + u, 0) + u * 3 * S.gap - u;
+  const letters = items.filter(i => i.ch !== ' ').length;
+  $('msgInfo').textContent = letters ? `${letters} znaků · přehrání zabere asi ${Math.round(ms / 100) / 10} s` : 'Napiš zprávu.';
+  if (!playing) renderChips(items);
+}
+$('msg').addEventListener('input', updateMsgInfo);
+
+async function playMessage() {
+  const items = textToItems($('msg').value);
+  if (!items.length) return;
+  const session = ++msgSession;
+  playing = true; $('btnPlay').textContent = '■ Stop'; $('btnPlay').className = 'btn stop';
+  let cur = null;   // právě přehrávaný znak
+  do {
+    const ok = await playItems(items, {
+      lamp: $('lamp'),
+      letter: (k, it) => { cur = it; renderChips(items, k); $('lamp').textContent = it.ch === ' ' ? '' : it.ch; $('lampCode').innerHTML = it.code ? codeHTML(it.code) : ''; },
+      symbol: j => { if (cur && cur.code) $('lampCode').innerHTML = codeHTML(cur.code, j); }
+    });
+    if (!ok) break;
+    renderChips(items, items.length);
+    if (repeat) await sleep(S.unit * 12);
+  } while (repeat && playing && session === msgSession);
+  if (session !== msgSession) return;   // mezitím se spustilo nové přehrávání
+  playing = false; $('btnPlay').textContent = '▶ Zavibrovat'; $('btnPlay').className = 'btn primary';
+  $('lamp').textContent = ''; $('lampCode').innerHTML = ''; renderChips(items);
+}
+$('btnPlay').addEventListener('click', () => {
+  if (playing) {
+    playing = false; msgSession++; stopPlaying();
+    $('btnPlay').textContent = '▶ Zavibrovat'; $('btnPlay').className = 'btn primary';
+    $('lamp').textContent = ''; $('lampCode').innerHTML = ''; renderChips(textToItems($('msg').value));
+  }
+  else playMessage();
+});
+$('btnRepeat').addEventListener('click', () => {
+  repeat = !repeat;
+  $('btnRepeat').className = repeat ? 'btn primary' : 'btn ghost';
+  toast(repeat ? 'Opakování zapnuto' : 'Opakování vypnuto');
+});
+
+// =========================================================
+// 6) ZÁLOŽKA TRÉNINK
+// =========================================================
+const train = { cur: null, last: null, right: 0, total: 0, streak: 0, locked: false };
+
+function renderTrain() {
+  const set = ORDER.slice(0, S.level);
+  $('lvl').value = S.level;
+  $('lvlVal').textContent = S.level;
+  $('lvlLetters').textContent = 'Písmena: ' + set.join(' ');
+  $('answers').innerHTML = set.map(c => `<button class="ans" data-a="${c}">${c}</button>`).join('');
+  $('sRight').textContent = train.right;
+  $('sPct').textContent = train.total ? Math.round(train.right / train.total * 100) + ' %' : '–';
+  $('sStreak').textContent = train.streak;
+}
+$('lvl').addEventListener('input', () => { S.level = +$('lvl').value; saveSettings(); renderTrain(); });
+
+async function trainNext() {
+  stopPlaying();
+  const set = ORDER.slice(0, S.level);
+  let c;
+  do { c = set[Math.floor(Math.random() * set.length)]; } while (c === train.last && set.length > 1);
+  train.cur = c; train.last = c; train.locked = false;
+  $('feedback').textContent = '…poslouchej rukou…';
+  $('feedback').style.color = '';
+  $('btnTrainStart').textContent = '⏭ Další';
+  await sleep(250);
+  await playItems([{ ch: c, code: MORSE[c] }], { alert: false });
+  if (train.cur === c && !train.locked) $('feedback').textContent = 'Které písmeno to bylo?';
+}
+$('btnTrainStart').addEventListener('click', trainNext);
+$('btnTrainRepeat').addEventListener('click', () => {
+  if (!train.cur) return trainNext();
+  stopPlaying();
+  playItems([{ ch: train.cur, code: MORSE[train.cur] }], { alert: false });
+});
+$('answers').addEventListener('click', e => {
+  const b = e.target.closest('.ans');
+  if (!b || !train.cur || train.locked) return;
+  train.locked = true;
+  stopPlaying();
+  const ok = b.dataset.a === train.cur;
+  train.total++;
+  if (ok) { train.right++; train.streak++; }
+  else train.streak = 0;
+  renderTrain();
+  const btn = $('answers').querySelector(`[data-a="${train.cur}"]`);
+  if (ok) {
+    btn.classList.add('right');
+    $('feedback').innerHTML = `✓ Správně! ${train.cur} = ${pretty(MORSE[train.cur])}`;
+    $('feedback').style.color = 'var(--ok)';
+    setTimeout(trainNext, 900);
+  } else {
+    $('answers').querySelector(`[data-a="${b.dataset.a}"]`).classList.add('wrong');
+    btn.classList.add('right');
+    $('feedback').innerHTML = `✗ Byla to ${train.cur} = ${pretty(MORSE[train.cur])}`;
+    $('feedback').style.color = 'var(--error)';
+    if (canVibrate && S.vibrate) setTimeout(() => playItems([{ ch: train.cur, code: MORSE[train.cur] }], { alert: false }), 500);
+  }
+});
+const pretty = code => [...code].map(s => s === '.' ? '·' : '–').join(' ');
+
+// =========================================================
+// 7) ZÁLOŽKA KLEPÁNÍ (dekódování stisků)
+// =========================================================
+// krátký stisk (< 2 tečky) = tečka, delší = čárka
+// pauza 4 tečky → konec písmene, pauza 10 teček → mezera
+let tapText = '', tapSymbols = '', downAt = 0, letterTimer = null, wordTimer = null;
+const pad = $('pad');
+
+function renderTap() {
+  $('decoded').innerHTML = (tapText.replace(/ /g, '&nbsp;') || '') + '<span class="cursor"></span>';
+  $('padSymbols').textContent = pretty(tapSymbols);
+  $('padHint').textContent = tapSymbols ? (DECODE[tapSymbols] ? `→ ${DECODE[tapSymbols]}` : '→ ?') : 'Klepej sem';
+}
+function commitLetter() {
+  if (!tapSymbols) return;
+  tapText += DECODE[tapSymbols] || '?';
+  tapSymbols = '';
+  renderTap();
+  wordTimer = setTimeout(() => { if (tapText && !tapText.endsWith(' ')) { tapText += ' '; renderTap(); } }, S.unit * 6);
+}
+pad.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  pad.setPointerCapture(e.pointerId);
+  clearTimeout(letterTimer); clearTimeout(wordTimer);
+  downAt = performance.now();
+  pad.classList.add('down');
+  if (S.tapVibe && canVibrate) navigator.vibrate(4000);
+  if (S.sound) beep(60);
+});
+function tapUp() {
+  if (!downAt) return;
+  const dur = performance.now() - downAt;
+  downAt = 0;
+  pad.classList.remove('down');
+  if (canVibrate) navigator.vibrate(0);
+  tapSymbols += dur < S.unit * 2 ? '.' : '-';
+  renderTap();
+  letterTimer = setTimeout(commitLetter, S.unit * 4);
+}
+pad.addEventListener('pointerup', tapUp);
+pad.addEventListener('pointercancel', tapUp);
+$('btnTapBack').addEventListener('click', () => { clearTimeout(letterTimer); clearTimeout(wordTimer); if (tapSymbols) tapSymbols = ''; else tapText = tapText.trimEnd().slice(0, -1); renderTap(); });
+$('btnTapClear').addEventListener('click', () => { clearTimeout(letterTimer); clearTimeout(wordTimer); tapText = ''; tapSymbols = ''; renderTap(); });
+$('btnTapPlay').addEventListener('click', () => { const items = textToItems(tapText); if (items.length) { stopPlaying(); playItems(items); } });
+
+// =========================================================
+// 8) ZÁLOŽKA ABECEDA
+// =========================================================
+function renderAlpha() {
+  const groups = [
+    ['Písmena', [...ORDER, ...(S.ch ? ['CH'] : [])]],
+    ['Číslice', '1234567890'.split('')],
+    ['Znaménka', ['.', ',', '?', '!', '/', '=']]
+  ];
+  $('alpha').innerHTML = groups.map(([title, list]) =>
+    `<h4 style="grid-column:1/-1">${title}</h4>` +
+    list.map(c => `<button data-c="${c}"><b>${c}</b><span class="code">${codeHTML(MORSE[c])}</span></button>`).join('')
+  ).join('');
+}
+$('alpha').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-c]'); if (!b) return;
+  stopPlaying();
+  document.querySelectorAll('.alpha button.playing').forEach(x => x.classList.remove('playing'));
+  b.classList.add('playing');
+  await playItems([{ ch: b.dataset.c, code: MORSE[b.dataset.c] }], { alert: false });
+  b.classList.remove('playing');
+});
+
+// =========================================================
+// 9) ZÁLOŽKY, NASTAVENÍ, OZNÁMENÍ
+// =========================================================
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  stopPlaying(); playing = false;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === t.dataset.page));
+}));
+
+function renderSettings() {
+  $('unit').value = S.unit; $('unitVal').textContent = S.unit + ' ms';
+  $('gap').value = S.gap; $('gapVal').textContent = S.gap + '×';
+  document.querySelectorAll('[data-set]').forEach(sw => sw.classList.toggle('on', !!S[sw.dataset.set]));
+}
+$('unit').addEventListener('input', () => { S.unit = +$('unit').value; saveSettings(); renderSettings(); updateMsgInfo(); });
+$('gap').addEventListener('input', () => { S.gap = +$('gap').value; saveSettings(); renderSettings(); updateMsgInfo(); });
+document.querySelectorAll('[data-set]').forEach(sw => sw.addEventListener('click', () => {
+  S[sw.dataset.set] = !S[sw.dataset.set]; saveSettings(); renderSettings(); updateMsgInfo(); renderAlpha();
+}));
+$('btnTest').addEventListener('click', () => { stopPlaying(); playItems(textToItems('SOS'), { alert: false }); });
+
+$('btnSettings').addEventListener('click', () => { $('overlay').classList.add('open'); $('sheetSettings').classList.add('open'); });
+function closeSheets() { $('overlay').classList.remove('open'); $('sheetSettings').classList.remove('open'); }
+$('overlay').addEventListener('click', closeSheets);
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheets));
+
+let toastTimer;
+function toast(msg) {
+  $('toast').textContent = msg; $('toast').classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 1600);
+}
+
+// když aplikace přejde na pozadí, přehrávání zastavíme (vibrace by stejně nefungovaly)
+document.addEventListener('visibilitychange', () => { if (document.hidden) { stopPlaying(); playing = false; } });
+
+// start
+renderSettings(); updateMsgInfo(); renderTrain(); renderTap(); renderAlpha();
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+</body>
+</html>
