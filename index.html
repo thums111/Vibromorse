@@ -31,8 +31,8 @@
   header h1 span { color:var(--accent); }
   .icon-btn { background:var(--card); border:none; width:44px; height:44px; border-radius:14px; font-size:20px; }
 
-  .tabs { display:grid; grid-template-columns:repeat(4,1fr); background:var(--card); border-radius:16px; padding:4px; }
-  .tab { border:none; background:none; color:var(--muted); padding:11px 0; border-radius:12px; font-size:14px; font-weight:700; }
+  .tabs { display:grid; grid-template-columns:repeat(5,1fr); background:var(--card); border-radius:16px; padding:4px; }
+  .tab { border:none; background:none; color:var(--muted); padding:11px 0; border-radius:12px; font-size:13px; font-weight:700; }
   .tab.active { background:var(--accent); color:#fff; }
   .page { display:none; flex-direction:column; gap:14px; flex:1; }
   .page.active { display:flex; }
@@ -100,6 +100,25 @@
   .alpha button.playing .code i { background:#fff; }
   h4 { font-size:14px; color:var(--muted); margin:6px 2px 0; }
 
+  /* Spojení */
+  input.txt { width:100%; min-width:0; background:var(--card2); border:1px solid transparent; color:var(--text); border-radius:14px;
+    padding:0 14px; height:58px; font-size:17px; font-family:inherit; }
+  input.txt:focus { outline:none; border-color:var(--accent); }
+  .room { display:flex; align-items:center; gap:10px; font-size:16px; margin-bottom:12px; flex-wrap:wrap; }
+  .room b { font-size:26px; letter-spacing:2px; font-family:ui-monospace,monospace; }
+  .conn { width:12px; height:12px; border-radius:50%; background:var(--error); flex-shrink:0; }
+  .conn.on { background:var(--ok); box-shadow:0 0 10px var(--ok); }
+  .chat { flex:1; min-height:200px; display:flex; flex-direction:column; gap:8px; overflow-y:auto; padding:2px; }
+  .bubble { max-width:82%; padding:10px 14px; border-radius:18px; font-size:17px; line-height:1.35; word-break:break-word; position:relative; }
+  .bubble small { display:block; font-size:11px; color:var(--muted); margin-top:3px; }
+  .bubble.me { align-self:flex-end; background:var(--accent); color:#fff; border-bottom-right-radius:6px; }
+  .bubble.me small { color:rgba(255,255,255,.75); }
+  .bubble.them { align-self:flex-start; background:var(--card); border-bottom-left-radius:6px; padding-right:48px; }
+  .bubble.them.playing { outline:2px solid var(--accent); }
+  .bubble .replay { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:36px; height:36px; border:none;
+    border-radius:12px; background:var(--card2); font-size:15px; }
+  .chat-empty { text-align:center; color:var(--muted); padding:30px 10px; font-size:14px; line-height:1.5; }
+
   /* Nastavení */
   .overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; z-index:10; }
   .overlay.open { display:block; }
@@ -133,6 +152,7 @@
 
   <div class="tabs">
     <button class="tab active" data-page="pMsg">Zpráva</button>
+    <button class="tab" data-page="pChat">Spojení</button>
     <button class="tab" data-page="pTrain">Trénink</button>
     <button class="tab" data-page="pTap">Klepání</button>
     <button class="tab" data-page="pAlpha">Abeceda</button>
@@ -154,6 +174,32 @@
       <button class="btn ghost" id="btnRepeat" style="flex:0 0 72px" aria-label="Opakovat stále">🔁</button>
     </div>
     <p class="hint" id="msgInfo"></p>
+  </section>
+
+  <!-- SPOJENÍ (dva telefony) -->
+  <section class="page" id="pChat">
+    <div class="card">
+      <div id="pairOff">
+        <p class="hint" style="margin-bottom:12px">Spoj dva telefony stejným kódem. Co napíše jeden, druhý ucítí jako vibrace.</p>
+        <button class="btn primary" id="btnNewRoom">➕ Vytvořit nový kód</button>
+        <div class="row" style="margin-top:10px">
+          <input class="txt" id="roomInput" placeholder="nebo zadej kód" autocomplete="off" autocapitalize="off">
+          <button class="btn ghost" id="btnJoin" style="flex:0 0 112px">Připojit</button>
+        </div>
+      </div>
+      <div id="pairOn" hidden>
+        <div class="room"><span class="conn" id="connDot"></span><span id="connText">Připojuji…</span><span style="flex:1"></span>Kód: <b id="roomCode"></b></div>
+        <div class="row">
+          <button class="btn ghost" id="btnShare">📤 Poslat kód</button>
+          <button class="btn ghost" id="btnLeave">Odpojit</button>
+        </div>
+      </div>
+    </div>
+    <div class="chat" id="chat"></div>
+    <div class="row" id="sendRow">
+      <input class="txt" id="chatInput" placeholder="Napiš zprávu…" maxlength="200" autocomplete="off">
+      <button class="btn primary" id="btnSend" style="flex:0 0 100px">Odeslat</button>
+    </div>
   </section>
 
   <!-- TRÉNINK -->
@@ -189,6 +235,7 @@
       <button class="btn ghost" id="btnTapClear">🗑️ Vše</button>
       <button class="btn primary" id="btnTapPlay">▶ Přehrát</button>
     </div>
+    <button class="btn primary" id="btnTapSend" hidden>📤 Odeslat do spojení</button>
   </section>
 
   <!-- ABECEDA -->
@@ -215,6 +262,8 @@
   <div class="toggle"><div>Zvuk<small>pípání pro kontrolu (nebo bez vibrací)</small></div><button class="switch" data-set="sound"></button></div>
   <div class="toggle"><div>Upozornění před zprávou<small>dlouhé zavrčení = „pozor, přichází zpráva“</small></div><button class="switch" data-set="alert"></button></div>
   <div class="toggle"><div>Česká CH<small>„ch“ jako jeden znak ( – – – – )</small></div><button class="switch" data-set="ch"></button></div>
+  <div class="toggle"><div>Přehrát příchozí zprávy hned<small>ve Spojení se zpráva sama zavibruje</small></div><button class="switch" data-set="autoPlay"></button></div>
+  <div class="toggle"><div>Nechat displej svítit<small>když je telefon spojený – jinak by zprávy nepřišly</small></div><button class="switch" data-set="wake"></button></div>
   <div class="toggle"><div>Vibrace při klepání<small>telefon vrčí, dokud držíš prst</small></div><button class="switch" data-set="tapVibe"></button></div>
   <button class="btn ghost" id="btnTest" style="margin-top:14px">Vyzkoušet: SOS</button>
   <button class="btn primary" data-close style="margin-top:8px">Hotovo</button>
@@ -245,7 +294,7 @@ const ORDER = 'ETIANMSURWDKGOHVFLPJBXCYZQ'.split('');
 // =========================================================
 const $ = id => document.getElementById(id);
 const KEY = 'vibromorse_nastaveni_v1';
-const DEFAULTS = { unit: 200, gap: 2, vibrate: true, sound: false, alert: true, ch: true, tapVibe: true, level: 4 };
+const DEFAULTS = { unit: 200, gap: 2, vibrate: true, sound: false, alert: true, ch: true, tapVibe: true, level: 4, autoPlay: true, wake: true, room: '' };
 let S = DEFAULTS;
 try { S = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(KEY))); } catch (e) {}
 const saveSettings = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
@@ -521,10 +570,174 @@ $('alpha').addEventListener('click', async e => {
 });
 
 // =========================================================
+// 8b) SPOJENÍ DVOU TELEFONŮ (přes ntfy.sh)
+// =========================================================
+// ntfy.sh je bezplatná služba na posílání zpráv. Funguje jako nástěnka s názvem ("topic"):
+//   - POST https://ntfy.sh/<topic>      → pověsí zprávu na nástěnku
+//   - GET  https://ntfy.sh/<topic>/sse  → živý odběr: každá nová zpráva hned přijde (Server-Sent Events)
+// Oba telefony odebírají stejnou nástěnku (= stejný kód). Svoje vlastní zprávy poznáme podle deviceId.
+const SERVER = new URLSearchParams(location.search).get('server') || 'https://ntfy.sh';
+if (!S.deviceId) { S.deviceId = Math.random().toString(36).slice(2, 10); saveSettings(); }
+const topicOf = code => 'vibromorse-' + code.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+let es = null;                 // EventSource = živé spojení
+let lastId = '';               // id poslední přijaté zprávy (pro dohnání zmeškaných)
+const seen = new Set();        // aby se žádná zpráva nezobrazila dvakrát
+let chat = [];                 // zprávy aktuální místnosti
+
+const CHAT_KEY = () => 'vibromorse_chat_' + topicOf(S.room);
+function loadChat() { try { chat = JSON.parse(localStorage.getItem(CHAT_KEY())) || []; } catch (e) { chat = []; } chat.forEach(m => m.id && seen.add(m.id)); }
+function saveChat() { try { localStorage.setItem(CHAT_KEY(), JSON.stringify(chat.slice(-60))); } catch (e) {} }
+
+function newCode() {
+  const a = 'abcdefghjkmnpqrstuvwxyz23456789';     // bez 0/o, 1/l/i – nedají se splést
+  const r = crypto.getRandomValues(new Uint32Array(8));
+  const s = [...r].map(x => a[x % a.length]).join('');
+  return s.slice(0, 4) + '-' + s.slice(4);
+}
+
+function connect(code) {
+  code = code.trim().toLowerCase();
+  if (topicOf(code).length < 16) { toast('Kód je moc krátký'); return; }
+  S.room = code; saveSettings();
+  loadChat(); renderChat();
+  openStream();
+  renderPair();
+  requestWake();
+}
+function openStream() {
+  if (es) es.close();
+  setConn(false);
+  // since=… → nech si poslat i zprávy, které přišly, když jsme nebyli připojení
+  const since = lastId || (chat.length ? Math.floor(chat[chat.length - 1].time / 1000) : '10m');
+  es = new EventSource(`${SERVER}/${topicOf(S.room)}/sse?since=${since}`);
+  es.onopen = () => setConn(true);
+  es.onerror = () => setConn(false);
+  es.onmessage = e => {
+    let ev; try { ev = JSON.parse(e.data); } catch (err) { return; }
+    if (ev.event && ev.event !== 'message') return;
+    if (seen.has(ev.id)) return;
+    seen.add(ev.id); lastId = ev.id;
+    let m; try { m = JSON.parse(ev.message); } catch (err) { m = { from: '?', text: ev.message }; }
+    if (!m || typeof m.text !== 'string') return;
+    const mine = m.from === S.deviceId;
+    const msg = { id: ev.id, mine, text: m.text.slice(0, 200), time: (ev.time || Date.now() / 1000) * 1000 };
+    if (mine) {                                    // vlastní zpráva se vrátila → jen potvrdit doručení
+      const pending = chat.find(x => x.mine && x.pending && x.text === msg.text);
+      if (pending) { pending.pending = false; pending.id = ev.id; } else chat.push(msg);
+    } else {
+      chat.push(msg);
+      if (S.autoPlay) queueIncoming(msg);
+    }
+    saveChat(); renderChat();
+  };
+}
+function disconnect() {
+  if (es) es.close(); es = null;
+  stopIncoming();
+  S.room = ''; saveSettings(); chat = []; lastId = '';
+  releaseWake(); renderPair(); renderChat();
+}
+function setConn(on) {
+  $('connDot').classList.toggle('on', on);
+  $('connText').textContent = on ? 'Spojeno' : 'Připojuji…';
+}
+
+async function sendText(text) {
+  text = text.trim().slice(0, 200);
+  if (!text || !S.room) return false;
+  const msg = { mine: true, text, time: Date.now(), pending: true };
+  chat.push(msg); renderChat();
+  try {
+    const r = await fetch(`${SERVER}/${topicOf(S.room)}`, { method: 'POST', body: JSON.stringify({ from: S.deviceId, text }) });
+    if (!r.ok) throw new Error(r.status);
+    return true;
+  } catch (e) {
+    chat.splice(chat.indexOf(msg), 1); renderChat();
+    toast('Nepodařilo se odeslat – jsi online?');
+    return false;
+  }
+}
+
+// příchozí zprávy se přehrávají postupně, jedna po druhé
+const incoming = [];
+let incomingBusy = false, playingMsg = null;
+async function queueIncoming(msg) {
+  incoming.push(msg);
+  if (incomingBusy) return;
+  incomingBusy = true;
+  while (incoming.length) {
+    playingMsg = incoming.shift(); renderChat();
+    await playItems(textToItems(playingMsg.text));
+    await sleep(S.unit * 4);
+  }
+  playingMsg = null; incomingBusy = false; renderChat();
+}
+function stopIncoming() { incoming.length = 0; playingMsg = null; incomingBusy = false; stopPlaying(); }
+
+const fmtClock = t => new Date(t).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+function renderChat() {
+  const el = $('chat');
+  if (!S.room) { el.innerHTML = ''; return; }
+  if (!chat.length) { el.innerHTML = '<div class="chat-empty">Zatím žádné zprávy.<br>Pošli kód druhému telefonu a napiš první zprávu.</div>'; return; }
+  el.innerHTML = chat.map((m, k) => `<div class="bubble ${m.mine ? 'me' : 'them'} ${m === playingMsg ? 'playing' : ''}">
+      ${esc(m.text)}<small>${fmtClock(m.time)}${m.mine ? (m.pending ? ' · odesílám…' : ' · ✓') : ''}</small>
+      ${m.mine ? '' : `<button class="replay" data-k="${k}" aria-label="Přehrát znovu">▶</button>`}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function renderPair() {
+  const on = !!S.room;
+  $('pairOff').hidden = on; $('pairOn').hidden = !on;
+  $('sendRow').style.display = on ? '' : 'none';
+  $('btnTapSend').hidden = !on;
+  $('roomCode').textContent = S.room;
+}
+
+$('btnNewRoom').addEventListener('click', () => connect(newCode()));
+$('btnJoin').addEventListener('click', () => connect($('roomInput').value));
+$('roomInput').addEventListener('keydown', e => { if (e.key === 'Enter') connect($('roomInput').value); });
+$('btnLeave').addEventListener('click', () => { if (confirm('Odpojit tento telefon?')) disconnect(); });
+$('btnShare').addEventListener('click', async () => {
+  const text = `Připoj se ve VibroMorse kódem: ${S.room}\n${location.origin + location.pathname}`;
+  try {
+    if (navigator.share) await navigator.share({ title: 'VibroMorse', text });
+    else { await navigator.clipboard.writeText(S.room); toast('Kód zkopírován'); }
+  } catch (e) {}
+});
+async function sendFromInput() {
+  const t = $('chatInput').value;
+  if (await sendText(t)) $('chatInput').value = '';
+}
+$('btnSend').addEventListener('click', sendFromInput);
+$('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendFromInput(); });
+$('chat').addEventListener('click', e => {
+  const b = e.target.closest('.replay'); if (!b) return;
+  stopIncoming(); queueIncoming(chat[+b.dataset.k]);
+});
+$('btnTapSend').addEventListener('click', async () => {
+  if (!tapText.trim()) { toast('Nejdřív něco naklepej'); return; }
+  if (await sendText(tapText)) { tapText = ''; tapSymbols = ''; renderTap(); toast('Odesláno'); }
+});
+
+// displej nesmí zhasnout, jinak prohlížeč spojení uspí
+let wakeLock = null;
+async function requestWake() {
+  if (!S.wake || !S.room || !('wakeLock' in navigator) || document.hidden) return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+function releaseWake() { if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; } }
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && S.room) { requestWake(); openStream(); }   // po návratu dohnat zmeškané zprávy
+});
+
+// =========================================================
 // 9) ZÁLOŽKY, NASTAVENÍ, OZNÁMENÍ
 // =========================================================
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
-  stopPlaying(); playing = false;
+  if (!incomingBusy) stopPlaying();
+  playing = false;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === t.dataset.page));
 }));
@@ -538,6 +751,7 @@ $('unit').addEventListener('input', () => { S.unit = +$('unit').value; saveSetti
 $('gap').addEventListener('input', () => { S.gap = +$('gap').value; saveSettings(); renderSettings(); updateMsgInfo(); });
 document.querySelectorAll('[data-set]').forEach(sw => sw.addEventListener('click', () => {
   S[sw.dataset.set] = !S[sw.dataset.set]; saveSettings(); renderSettings(); updateMsgInfo(); renderAlpha();
+  if (sw.dataset.set === 'wake') S.wake ? requestWake() : releaseWake();
 }));
 $('btnTest').addEventListener('click', () => { stopPlaying(); playItems(textToItems('SOS'), { alert: false }); });
 
@@ -556,7 +770,8 @@ function toast(msg) {
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stopPlaying(); playing = false; } });
 
 // start
-renderSettings(); updateMsgInfo(); renderTrain(); renderTap(); renderAlpha();
+renderSettings(); updateMsgInfo(); renderTrain(); renderTap(); renderAlpha(); renderPair();
+if (S.room) connect(S.room);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>
 </body>

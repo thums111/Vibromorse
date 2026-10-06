@@ -1,6 +1,6 @@
 // Service worker – uloží aplikaci do mobilu, aby fungovala i bez internetu.
 // Při nové verzi aplikace zvyš číslo (v1 -> v2), aby si mobil stáhl novinky.
-const CACHE = 'vibromorse-v1';
+const CACHE = 'vibromorse-v2';
 const FILES = [
   './',
   './index.html',
@@ -24,6 +24,7 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== location.origin) return;   // zprávy z ntfy.sh nechat projít přímo
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(hit =>
       hit || fetch(e.request).catch(() => caches.match('./index.html'))
